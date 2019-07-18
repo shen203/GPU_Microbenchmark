@@ -30,13 +30,10 @@ __global__ void l1_lat(uint32_t *startClk, uint32_t *stopClk, double *posArray){
 	uint32_t tid = threadIdx.x;
 	if(tid < THREADS_NUM){
 	// a register to avoid compiler optimization
-//	double sink = 0;
 	double *ptr = posArray + tid;
-	// populate l1 cache to warm up
 	asm volatile ("{\t\n"
 		".reg .f64 data;\n\t"
 		"ld.global.ca.f64 data, [%0];\n\t"
-//		"add.f64 %0, data, %0;\n\t"
 		"}" : : "l"(ptr) : "memory"
 	);
 	
@@ -51,7 +48,6 @@ __global__ void l1_lat(uint32_t *startClk, uint32_t *stopClk, double *posArray){
 		asm volatile ("{\t\n"
 			".reg .f64 data;\n\t"
 			"ld.global.ca.f64 data, [%0];\n\t"
-//			"add.f64 %0, data, %0;\n\t"
 			"}" :  : "l"(ptr) : "memory"
 		);
 
