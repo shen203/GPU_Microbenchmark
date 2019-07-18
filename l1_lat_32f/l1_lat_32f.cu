@@ -1,7 +1,7 @@
 //This code is a modification of L1 cache benchmark from 
 //"Dissecting the NVIDIA Volta GPU Architecture via Microbenchmarking": https://arxiv.org/pdf/1804.06826.pdf
 
-//This benchmark measures the latency of L1 cache
+//This benchmark measures the latency of L1 cache 32f read
 
 //This code have been tested on Volta V100 architecture
 
@@ -11,7 +11,6 @@
 
 #define THREADS_NUM 32
 #define WARP_SIZE 32
-#define L1_SIZE 32768
 #define ITERS 32768
 
 // GPU error check
@@ -23,26 +22,25 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
         }
 }
 
-//launch 1 thread. Measure latency of 32768 reads. 
-__global__ void l1_lat(uint32_t *startClk, uint32_t *stopClk, float *posArray){
+//Measure latency of 32768 reads. 
+__global__ void l1_lat(uint32_t *startClk, uint32_t *stopClk, float *posArray, float *dsink){
 	
 	// thread index
 	uint32_t tid = threadIdx.x;
 	if(tid < THREADS_NUM){
 	// a register to avoid compiler optimization
-//	float sink = 0;
+	float sink = 0;
 	float *ptr = posArray + tid;
 	// populate l1 cache to warm up
 	asm volatile ("{\t\n"
 		".reg .f32 data;\n\t"
-		"ld.global.ca.f32 data, [%0];\n\t"
-//		"add.f32 %0, data, %0;\n\t"
-		"}" : : "l"(ptr) : "memory"
+		"ld.global.ca.f32 data, [%1];\n\t"
+		"add.f32 %0, data, %0;\n\t"
+		"}" : "+f"(sink) : "l"(ptr) : "memory"
 	);
 	
 	// synchronize all threads
 	asm volatile ("bar.sync 0;");
-	
 	// start timing
 	uint32_t start = 0;
 	asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
@@ -50,11 +48,10 @@ __global__ void l1_lat(uint32_t *startClk, uint32_t *stopClk, float *posArray){
 		// load data from l1 cache and accumulate
 		asm volatile ("{\t\n"
 			".reg .f32 data;\n\t"
-			"ld.global.ca.f32 data, [%0];\n\t"
-//			"add.f32 %0, data, %0;\n\t"
-			"}" :  : "l"(ptr) : "memory"
+			"ld.global.ca.f32 data, [%1];\n\t"
+			"add.f32 %0, data, %0;\n\t"
+			"}" : "+f"(sink) : "l"(ptr) : "memory"
 		);
-
 		// synchronize all threads
 		asm volatile("bar.sync 0;");
 	}
@@ -64,6 +61,7 @@ __global__ void l1_lat(uint32_t *startClk, uint32_t *stopClk, float *posArray){
 	// write time and data back to memory
 	startClk[tid] = start;
 	stopClk[tid] = stop;
+	dsink[tid] = sink;
 	}
 }
 
@@ -88,7 +86,7 @@ int main(){
 	
 	gpuErrchk( cudaMemcpy(posArray_g, posArray, THREADS_NUM*sizeof(float), cudaMemcpyHostToDevice) );
 
-	l1_lat<<<1,THREADS_NUM>>>(startClk_g, stopClk_g, posArray_g);
+	l1_lat<<<1,THREADS_NUM>>>(startClk_g, stopClk_g, posArray_g, dsink_g);
 
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
 	gpuErrchk( cudaMemcpy(stopClk, stopClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
