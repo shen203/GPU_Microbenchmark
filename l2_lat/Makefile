@@ -10,9 +10,9 @@ CC := nvcc
 INCLUDE := 
 LIB := 
 
-SRC = l2_lat_32f.cu
+SRC = l2_lat.cu
 
-EXE = l2_lat_32f
+EXE = l2_lat
 
 NVCC_FLGAS = -Xptxas -dlcm=cg -Xptxas -dscm=wt
 

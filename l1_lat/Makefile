@@ -10,9 +10,9 @@ CC := nvcc
 INCLUDE := 
 LIB := 
 
-SRC = l1_lat_32f.cu
+SRC = l1_lat.cu
 
-EXE = l1_lat_32f
+EXE = l1_lat
 
 release:
 	$(CC) $(CUOPTS) $(SRC) -o $(EXE) -I$(INCLUDE) -L$(LIB) -lcudart
