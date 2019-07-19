@@ -24,7 +24,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 
 //Measure latency of 32768 reads. 
-__global__ void l1_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArray, uint64_t *dsink){
+__global__ void l2_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArray, uint64_t *dsink){
 	// thread index
 	uint32_t tid = threadIdx.x;
 	if (tid == 0){
@@ -83,7 +83,7 @@ int main(){
 	gpuErrchk( cudaMalloc(&posArray_g, ARRAY_SIZE*sizeof(uint64_t)) );
 	gpuErrchk( cudaMalloc(&dsink_g, THREADS_NUM*sizeof(uint64_t)) );
 	
-	l1_lat<<<1,THREADS_NUM>>>(startClk_g, stopClk_g, posArray_g, dsink_g);
+	l2_lat<<<1,THREADS_NUM>>>(startClk_g, stopClk_g, posArray_g, dsink_g);
 	gpuErrchk( cudaPeekAtLastError() );
 
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );

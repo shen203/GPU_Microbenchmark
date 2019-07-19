@@ -18,7 +18,7 @@
 #define REPEAT_TIMES 64 
 #define ARRAY_SIZE (TOTAL_THREADS + REPEAT_TIMES)
 #define WARP_SIZE 32 
-#define L2_SIZE 98304 //number of doubles can store
+#define L2_SIZE 786432 //number of doubles L2 can store
 
 // GPU error check
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -36,6 +36,7 @@ Load posArray and add sink to generate read traffic
 Repeat the previous step while offsetting posArray by one each iteration
 Stop timing and store data
 */
+
 __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, double*dsink, double*posArray){
 	// block and thread index
 	uint32_t tid = threadIdx.x;
@@ -76,6 +77,7 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, double*dsink, double
 		}
 	}
 	asm volatile("bar.sync 0;");
+
 	// stop timing
 	uint32_t stop = 0;
 	asm volatile("mov.u32 %0, %%clock;" : "=r"(stop) :: "memory");
@@ -115,13 +117,7 @@ int main(){
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
         gpuErrchk( cudaMemcpy(stopClk, stopClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
         gpuErrchk( cudaMemcpy(dsink, dsink_g, TOTAL_THREADS*sizeof(double), cudaMemcpyDeviceToHost) );
-/*
-        for(int i=0; i<32; i++){
-		//printf("startClk(%u) = %u, ", i, startClk[i]);
-		//printf("stopClk(%u) = %u, ", i, stopClk[i]);
-                printf("Clk(%u) = %u \n", i, stopClk[i]-startClk[i]);
-        }
-*/
+
 	double bw;
 	bw = ((double)(TOTAL_THREADS*REPEAT_TIMES*8))/((double)(stopClk[0]-startClk[0]));
 	printf("bandwidth = %f (byte/cycle)\n", bw);

@@ -9,10 +9,10 @@
 #include <stdlib.h> 
 #include <cuda.h>
 
-#define THREADS_NUM 1
+#define THREADS_NUM 1   //Launch only one thread to calcaulte the latency using a pointer-chasing array technique
 #define WARP_SIZE 32
-#define ITERS 32768 
-#define ARRAY_SIZE 4096
+#define ITERS 32768       //iterate ovrer the array ITERS times
+#define ARRAY_SIZE 4096    //size of the array
 
 // GPU error check
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -23,49 +23,59 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
         }
 }
 
-//Measure latency of 32768 reads. 
+//TO DO: @Jason, please change the code to be similar to the L2/DRAM latency format
+//Measure latency of ITERS reads. 
 __global__ void l1_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArray, uint64_t *dsink){
+
 	// thread index
+	uint32_t tid = threadIdx.x;
+
+	// one thread to initialize the pointer-chasing array
 	uint32_t tid = threadIdx.x;
 	if (tid == 0){
 	for (uint32_t i=0; i<(ARRAY_SIZE-1); i++)
 		posArray[i] = (uint64_t)(posArray + i + 1);
+
 	posArray[ARRAY_SIZE-1] = (uint64_t)posArray;
 	}
 
 	if(tid < THREADS_NUM){
-	// a register to avoid compiler optimization
-	uint64_t *ptr = posArray + tid;
-	uint64_t ptr1, ptr0;	
-	// populate l1 cache to warm up
-	asm volatile ("{\t\n"
-		"ld.global.ca.u64 %0, [%1];\n\t"
-		"}" : "=l"(ptr1) : "l"(ptr) : "memory"
-	);
+		// a register to avoid compiler optimization
+		uint64_t *ptr = posArray + tid;
+		uint64_t ptr1, ptr0;
 	
-	// synchronize all threads
-	asm volatile ("bar.sync 0;");
-	// start timing
-	uint32_t start = 0;
-	asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
-	for(uint32_t i=0; i<ITERS; ++i) {	
-		// load data from l1 cache and accumulate
+		// populate l1 cache to warm up
 		asm volatile ("{\t\n"
 			"ld.global.ca.u64 %0, [%1];\n\t"
-			"}" : "=l"(ptr0) : "l"((uint64_t*)ptr1) : "memory"
+			"}" : "=l"(ptr1) : "l"(ptr) : "memory"
 		);
-		ptr1 = ptr0;
-//		ptr1 = ptr0;
+	
 		// synchronize all threads
-//		asm volatile("bar.sync 0;");
-	}
-	// stop timing
-	uint32_t stop = 0;
-	asm volatile("mov.u32 %0, %%clock;" : "=r"(stop) :: "memory");
-	// write time and data back to memory
-	startClk[tid] = start;
-	stopClk[tid] = stop;
-	dsink[tid] = ptr1;
+		asm volatile ("bar.sync 0;");
+
+		// start timing
+		uint32_t start = 0;
+		asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
+
+
+		// pointer-chasing array
+		for(uint32_t i=0; i<ITERS; ++i) {	
+			asm volatile ("{\t\n"
+				"ld.global.ca.u64 %0, [%1];\n\t"
+				"}" : "=l"(ptr0) : "l"((uint64_t*)ptr1) : "memory"
+			);
+			ptr1 = ptr0;
+
+		}
+
+		// stop timing
+		uint32_t stop = 0;
+		asm volatile("mov.u32 %0, %%clock;" : "=r"(stop) :: "memory");
+
+		// write time and data back to memory
+		startClk[tid] = start;
+		stopClk[tid] = stop;
+		dsink[tid] = ptr1;
 	}
 }
 

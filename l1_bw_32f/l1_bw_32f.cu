@@ -11,7 +11,7 @@
 
 #define THREADS_NUM 1024
 #define WARP_SIZE 32
-#define L1_SIZE 32768
+#define L1_SIZE 32768   //L1 size in 32-bit. Volta L1 size is 128KB, i.e. 32K of 32-bit
 
 // GPU error check
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -30,6 +30,7 @@ __global__ void l1_bw(uint32_t *startClk, uint32_t *stopClk, float *dsink, float
 	// a register to avoid compiler optimization
 	float sink = 0;
 
+	// warp up L1 cache
 	for (uint32_t i = tid; i<L1_SIZE; i+=THREADS_NUM) {
 		float* ptr = posArray + i;
 		asm volatile ("{\t\n"
@@ -59,16 +60,14 @@ __global__ void l1_bw(uint32_t *startClk, uint32_t *stopClk, float *dsink, float
                 	);
         	}
 	}
-        // stop timing
-        //uint32_t stop = 0;
-        //asm volatile("mov.u32 %0, %%clock;" : "=r"(stop) :: "memory");
-	
+
 	// synchronize all threads
 	asm volatile("bar.sync 0;");
 	
 	// stop timing
 	uint32_t stop = 0;
 	asm volatile("mov.u32 %0, %%clock;" : "=r"(stop) :: "memory");
+
 	// write time and data back to memory
 	startClk[tid] = start;
 	stopClk[tid] = stop;
@@ -103,14 +102,7 @@ int main(){
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
 	gpuErrchk( cudaMemcpy(stopClk, stopClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
 	gpuErrchk( cudaMemcpy(dsink, dsink_g, THREADS_NUM*sizeof(float), cudaMemcpyDeviceToHost) );
-/*
-	for(uint32_t i=0; i<256; i++){
-		printf("stop Clk(%d) = %u    \n", i, stopClk);
-		printf("start Clk(%d) = %u    \n", i, startClk);
-		printf("Clk(%d) = %u \n", i, stopClk-startClk);
-		//printf("dsink(%d) = %f \n", i, dsink);
-	}
-*/
+
 	double bw;
 	bw = (double)(L1_SIZE*L1_SIZE/4*4)/((double)(stopClk[0]-startClk[0]));
 	printf("L1 bandwidth = %f (byte/clk)\n", bw);

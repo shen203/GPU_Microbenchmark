@@ -1,23 +1,23 @@
 //This code is a modification of L2 cache benchmark from 
 //"Dissecting the NVIDIA Volta GPU Architecture via Microbenchmarking": https://arxiv.org/pdf/1804.06826.pdf
 
-//This benchmark measures the maximum read bandwidth of L2 cache
+//This benchmark measures the maximum read bandwidth of GPU memory
 //Compile this file using the following command to disable L1 cache:
 //    nvcc -Xptxas -dlcm=cg -Xptxas -dscm=wt l2_bw.cu
 
 //This code have been tested on Volta V100 architecture
+//You can check the mem BW from the NVPROF (dram_read_throughput+dram_write_throughput)
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
 
-//Array size must not exceed L2 size 
 #define BLOCKS_NUM 160
 #define THREADS_NUM 1024 //thread number/block
 #define TOTAL_THREADS (BLOCKS_NUM*THREADS_NUM)
-#define ARRAY_SIZE 8388608
+#define ARRAY_SIZE 8388608   //Array size has to exceed L2 size to avoid L2 cache residence
 #define WARP_SIZE 32 
-#define L2_SIZE 98304 //number of floats can store
+#define L2_SIZE 1572864 //number of floats L2 can store
 
 // GPU error check
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -29,28 +29,26 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 
 /*
-L2 cache is warmed up by loading posArray and adding sink
-Start timing after warming up
-Load posArray and add sink to generate read traffic
-Repeat the previous step while offsetting posArray by one each iteration
-Stop timing and store data
+Four Vector Addition using flost4 types
+Send as many as float4 read requests on the flight to increase Row buffer locality of DRAM and hit the max BW
 */
+
 __global__ void mem_bw (float* A,  float* B, float* C, float* D, float* E, float* F){
 	// block and thread index
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	for(int i = idx; i < ARRAY_SIZE/4; i += blockDim.x * gridDim.x) {
-        float4 a1 = reinterpret_cast<float4*>(A)[i];
-        float4 b1 = reinterpret_cast<float4*>(B)[i];
-        float4 d1 = reinterpret_cast<float4*>(D)[i];
-        float4 e1 = reinterpret_cast<float4*>(E)[i];
+		float4 a1 = reinterpret_cast<float4*>(A)[i];
+		float4 b1 = reinterpret_cast<float4*>(B)[i];
+		float4 d1 = reinterpret_cast<float4*>(D)[i];
+		float4 e1 = reinterpret_cast<float4*>(E)[i];
 		float4 f1 = reinterpret_cast<float4*>(F)[i];
 		float4 c1;
 		
 		c1.x = a1.x + b1.x + d1.x + e1.x + f1.x;
-        c1.y = a1.y + b1.y + d1.y + e1.y + f1.y;
-        c1.z = a1.z + b1.z + d1.z + e1.z + f1.z;
-        c1.w = a1.w + b1.w + d1.w + e1.w + f1.w;
+		c1.y = a1.y + b1.y + d1.y + e1.y + f1.y;
+		c1.z = a1.z + b1.z + d1.z + e1.z + f1.z;
+		c1.w = a1.w + b1.w + d1.w + e1.w + f1.w;
 		
 		reinterpret_cast<float4*>(C)[i] = c1;
 	}
@@ -63,8 +61,7 @@ int main(){
 	float *D = (float*) malloc(ARRAY_SIZE*sizeof(float));
 	float *E = (float*) malloc(ARRAY_SIZE*sizeof(float));
 	float *F = (float*) malloc(ARRAY_SIZE*sizeof(float));
-//	float *G = (float*) malloc(ARRAY_SIZE*sizeof(float));
-//	float *H = (float*) malloc(ARRAY_SIZE*sizeof(float));
+
 
 	float *A_g = (float*) malloc(ARRAY_SIZE*sizeof(float));
 	float *B_g = (float*) malloc(ARRAY_SIZE*sizeof(float));
@@ -72,7 +69,7 @@ int main(){
 	float *D_g = (float*) malloc(ARRAY_SIZE*sizeof(float));
 	float *E_g = (float*) malloc(ARRAY_SIZE*sizeof(float));
 	float *F_g = (float*) malloc(ARRAY_SIZE*sizeof(float));
-//	float *G_g = (float*) malloc(ARRAY_SIZE*sizeof(float));
+
 
         for (uint32_t i=0; i<ARRAY_SIZE; i++){
                 A[i] = (float)i;
@@ -89,7 +86,7 @@ int main(){
 	gpuErrchk( cudaMalloc(&D_g, ARRAY_SIZE*sizeof(float)) );
 	gpuErrchk( cudaMalloc(&E_g, ARRAY_SIZE*sizeof(float)) );
 	gpuErrchk( cudaMalloc(&F_g, ARRAY_SIZE*sizeof(float)) );
-//	gpuErrchk( cudaMalloc(&G_g, ARRAY_SIZE*sizeof(float)) );
+
 
         gpuErrchk( cudaMemcpy(A_g, A, ARRAY_SIZE*sizeof(float), cudaMemcpyHostToDevice) );
 	gpuErrchk( cudaMemcpy(B_g, B, ARRAY_SIZE*sizeof(float), cudaMemcpyHostToDevice) );
@@ -101,6 +98,6 @@ int main(){
 	gpuErrchk( cudaPeekAtLastError() );
 	
 	gpuErrchk( cudaMemcpy(C, C_g, ARRAY_SIZE*sizeof(float), cudaMemcpyDeviceToHost) );
-//	gpuErrchk( cudaMemcpy(H, H_g, TOTAL_THREADS*sizeof(float), cudaMemcpyDeviceToHost) );
+
 
 }

@@ -9,10 +9,10 @@
 #include <stdlib.h> 
 #include <cuda.h>
 
-#define THREADS_NUM 4
+#define THREADS_NUM 4  //HERE, we launch four threads, to ensure that one request is equal to DRAM trascation, 4 thread * 8 bytes = 32 bytes (= min DRAM trascation)
 #define WARP_SIZE 32
 #define ITERS 32768 
-#define ARRAY_SIZE 1572864
+#define ARRAY_SIZE 1572864   //pointer-chasing array size in 64-bit. total array size is 12 MB which larger than L2 cache size (6 MB in Volta) to avoid l2 cache resident from the copy engine
 
 // GPU error check
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -23,52 +23,56 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
         }
 }
 
-//Measure latency of 32768 reads. 
+
 __global__ void mem_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArray, uint64_t *dsink){
 	// thread index
 	uint32_t tid = threadIdx.x;
-	//if (tid == 0){
+
+	// initialize pointer-chasing array
 	for (uint32_t i=tid; i<(ARRAY_SIZE-THREADS_NUM); i+=THREADS_NUM)
 		posArray[i] = (uint64_t)(posArray + i + THREADS_NUM);
 
-        //if(tid==0)
+	// initialize the tail to reference to the head of the array
 	posArray[ARRAY_SIZE-(THREADS_NUM-tid)] = (uint64_t)posArray + tid;
-	//}
+
 
 	if(tid < THREADS_NUM){
-	// a register to avoid compiler optimization
-	uint64_t *ptr = posArray + tid;
-	uint64_t ptr1, ptr0;	
-	// populate l1 cache to warm up
-	asm volatile ("{\t\n"
-		"ld.global.cv.u64 %0, [%1];\n\t"
-		"}" : "=l"(ptr1) : "l"(ptr) : "memory"
-	);
+		uint64_t *ptr = posArray + tid;
+		uint64_t ptr1, ptr0;
 	
-	// synchronize all threads
-	asm volatile ("bar.sync 0;");
-	uint32_t start = 0;
-	uint32_t stop = 0;
-	//if(tid == 0){
-	// start timing
-	asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
-	for(uint32_t i=tid; i<ITERS-THREADS_NUM; i+=THREADS_NUM) {	
-		// load data from l1 cache and accumulate
+		// initialize the pointers with the start address
 		asm volatile ("{\t\n"
 			"ld.global.cv.u64 %0, [%1];\n\t"
-			"}" : "=l"(ptr0) : "l"((uint64_t*)ptr1) : "memory"
+			"}" : "=l"(ptr1) : "l"(ptr) : "memory"
 		);
-		ptr1 = ptr0;
+	
 		// synchronize all threads
-//		asm volatile("bar.sync 0;");
-	}
-	// stop timing
-	asm volatile("mov.u32 %0, %%clock;" : "=r"(stop) :: "memory");
-	// write time and data back to memory
-	//}
-	startClk[tid] = start;
-	stopClk[tid] = stop;
-	dsink[tid] = ptr1;
+		asm volatile ("bar.sync 0;");
+
+		uint32_t start = 0;
+		uint32_t stop = 0;
+
+		// start timing
+		asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
+
+		//pointer chasing for ITERS times
+		for(uint32_t i=tid; i<ITERS-THREADS_NUM; i+=THREADS_NUM) {	
+			//Here, we use cache volatile modifier to ignore the L2 cache
+			asm volatile ("{\t\n"
+				"ld.global.cv.u64 %0, [%1];\n\t"
+				"}" : "=l"(ptr0) : "l"((uint64_t*)ptr1) : "memory"
+			);
+			ptr1 = ptr0;   //swap the register for the next load
+		}
+
+		// stop timing
+		asm volatile("mov.u32 %0, %%clock;" : "=r"(stop) :: "memory");
+
+		// write time and data back to memory
+
+		startClk[tid] = start;
+		stopClk[tid] = stop;
+		dsink[tid] = ptr1;
 	}
 }
 
@@ -93,7 +97,7 @@ int main(){
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
 	gpuErrchk( cudaMemcpy(stopClk, stopClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
 	gpuErrchk( cudaMemcpy(dsink, dsink_g, THREADS_NUM*sizeof(uint64_t), cudaMemcpyDeviceToHost) );
-	printf("L1 Latency for %d threads = %u \n", THREADS_NUM, (stopClk[0]-startClk[0]));
+	printf("Mem Latency for %d threads = %u \n", THREADS_NUM, (stopClk[0]-startClk[0]));
 
 	return 0;
 } 
