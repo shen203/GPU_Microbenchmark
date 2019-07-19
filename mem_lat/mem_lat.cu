@@ -9,12 +9,11 @@
 #include <stdlib.h> 
 #include <cuda.h>
 
-#define BLOCKS_NUM 80
-#define THREADS_NUM 32
-#define TOTAL_THREADS (BLOCKS_NUM*THREADS_NUM)
+#define THREADS_NUM 4
 #define WARP_SIZE 32
-#define ITERS 32768
-#define ARRAY_SIZE (ITERS*TOTAL_THREADS)
+#define ITERS 32768 
+#define ARRAY_SIZE 1572864
+
 // GPU error check
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true){
@@ -25,76 +24,76 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 
 //Measure latency of 32768 reads. 
-__global__ void mem_lat(uint32_t *startClk, uint32_t *stopClk, float *posArray, float *dsink){	
+__global__ void mem_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArray, uint64_t *dsink){
 	// thread index
 	uint32_t tid = threadIdx.x;
-	uint32_t bid = blockIdx.x;
-	uint32_t id = bid * blockDim.x + tid;
-	if(tid < blockDim.x && bid < gridDim.x){
-		// a register to avoid compiler optimization
-		float sink = 0;
-		float *ptr = posArray + id;
-		// populate l1 cache to warm up
+	//if (tid == 0){
+	for (uint32_t i=tid; i<(ARRAY_SIZE-THREADS_NUM); i+=THREADS_NUM)
+		posArray[i] = (uint64_t)(posArray + i + THREADS_NUM);
+
+        //if(tid==0)
+	posArray[ARRAY_SIZE-(THREADS_NUM-tid)] = (uint64_t)posArray + tid;
+	//}
+
+	if(tid < THREADS_NUM){
+	// a register to avoid compiler optimization
+	uint64_t *ptr = posArray + tid;
+	uint64_t ptr1, ptr0;	
+	// populate l1 cache to warm up
+	asm volatile ("{\t\n"
+		"ld.global.cv.u64 %0, [%1];\n\t"
+		"}" : "=l"(ptr1) : "l"(ptr) : "memory"
+	);
+	
+	// synchronize all threads
+	asm volatile ("bar.sync 0;");
+	uint32_t start = 0;
+	uint32_t stop = 0;
+	//if(tid == 0){
+	// start timing
+	asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
+	for(uint32_t i=tid; i<ITERS-THREADS_NUM; i+=THREADS_NUM) {	
+		// load data from l1 cache and accumulate
 		asm volatile ("{\t\n"
-			".reg .f32 data;\n\t"
-			"ld.global.cg.f32 data, [%1];\n\t"
-			"add.f32 %0, data, %0;\n\t"
-			"}" : "+f"(sink) : "l"(ptr) : "memory"
+			"ld.global.cv.u64 %0, [%1];\n\t"
+			"}" : "=l"(ptr0) : "l"((uint64_t*)ptr1) : "memory"
 		);
-		
+		ptr1 = ptr0;
 		// synchronize all threads
-		asm volatile ("bar.sync 0;");
-		// start timing
-		uint32_t start = 0;
-		asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
-		for(uint32_t i=0; i<ITERS; i++) {	
-			// load data from l1 cache and accumulate
-			asm volatile ("{\t\n"
-				".reg .f32 data;\n\t"
-				"ld.global.cg.f32 data, [%1];\n\t"
-				"add.f32 %0, data, %0;\n\t"
-				"}" : "+f"(sink) : "l"(ptr) : "memory"
-			);
-			// synchronize all threads
-			asm volatile("bar.sync 0;");
-		}
-		// stop timing
-		uint32_t stop = 0;
-		asm volatile("mov.u32 %0, %%clock;" : "=r"(stop) :: "memory");
-		// write time and data back to memory
-		startClk[id] = start;
-		stopClk[id] = stop;
-		dsink[id] = sink;
+//		asm volatile("bar.sync 0;");
+	}
+	// stop timing
+	asm volatile("mov.u32 %0, %%clock;" : "=r"(stop) :: "memory");
+	// write time and data back to memory
+	//}
+	startClk[tid] = start;
+	stopClk[tid] = stop;
+	dsink[tid] = ptr1;
 	}
 }
 
 int main(){
-	uint32_t *startClk = (uint32_t*) malloc(TOTAL_THREADS*sizeof(uint32_t));
-	uint32_t *stopClk = (uint32_t*) malloc(TOTAL_THREADS*sizeof(uint32_t));
-	float *posArray = (float*) malloc(TOTAL_THREADS*sizeof(float));
-	float *dsink = (float*) malloc(TOTAL_THREADS*sizeof(float));
+	uint32_t *startClk = (uint32_t*) malloc(THREADS_NUM*sizeof(uint32_t));
+	uint32_t *stopClk = (uint32_t*) malloc(THREADS_NUM*sizeof(uint32_t));
+	uint64_t *dsink = (uint64_t*) malloc(THREADS_NUM*sizeof(uint64_t));
 	
 	uint32_t *startClk_g;
         uint32_t *stopClk_g;
-        float *posArray_g;
-        float *dsink_g;
+        uint64_t *posArray_g;
+        uint64_t *dsink_g;
 	
-	for (uint32_t i=0; i<TOTAL_THREADS; i++)
-		posArray[i] = (float)i;
-		
-	gpuErrchk( cudaMalloc(&startClk_g, TOTAL_THREADS*sizeof(uint32_t)) );
-	gpuErrchk( cudaMalloc(&stopClk_g, TOTAL_THREADS*sizeof(uint32_t)) );
-	gpuErrchk( cudaMalloc(&posArray_g, TOTAL_THREADS*sizeof(float)) );
-	gpuErrchk( cudaMalloc(&dsink_g, TOTAL_THREADS*sizeof(float)) );
+	gpuErrchk( cudaMalloc(&startClk_g, THREADS_NUM*sizeof(uint32_t)) );
+	gpuErrchk( cudaMalloc(&stopClk_g, THREADS_NUM*sizeof(uint32_t)) );
+	gpuErrchk( cudaMalloc(&posArray_g, ARRAY_SIZE*sizeof(uint64_t)) );
+	gpuErrchk( cudaMalloc(&dsink_g, THREADS_NUM*sizeof(uint64_t)) );
 	
-	gpuErrchk( cudaMemcpy(posArray_g, posArray, TOTAL_THREADS*sizeof(float), cudaMemcpyHostToDevice) );
+	mem_lat<<<1,THREADS_NUM>>>(startClk_g, stopClk_g, posArray_g, dsink_g);
+	gpuErrchk( cudaPeekAtLastError() );
 
-	mem_lat<<<BLOCKS_NUM,THREADS_NUM>>>(startClk_g, stopClk_g, posArray_g, dsink_g);
-
-	gpuErrchk( cudaMemcpy(startClk, startClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
-	gpuErrchk( cudaMemcpy(stopClk, stopClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
-	gpuErrchk( cudaMemcpy(dsink, dsink_g, TOTAL_THREADS*sizeof(float), cudaMemcpyDeviceToHost) );
-	printf("L1 Latency for %d threads = %u \n", TOTAL_THREADS, (stopClk[0]-startClk[0]));
+	gpuErrchk( cudaMemcpy(startClk, startClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
+	gpuErrchk( cudaMemcpy(stopClk, stopClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
+	gpuErrchk( cudaMemcpy(dsink, dsink_g, THREADS_NUM*sizeof(uint64_t), cudaMemcpyDeviceToHost) );
+	printf("L1 Latency for %d threads = %u \n", THREADS_NUM, (stopClk[0]-startClk[0]));
 
 	return 0;
 } 
