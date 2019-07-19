@@ -9,7 +9,7 @@
 #include <stdlib.h> 
 #include <cuda.h>
 
-#define THREADS_NUM 32
+#define THREADS_NUM 1
 #define WARP_SIZE 32
 #define ITERS 32768 
 #define ARRAY_SIZE 4096
