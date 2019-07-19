@@ -19,6 +19,9 @@ NVCC_FLGAS = -Xptxas -dlcm=cg -Xptxas -dscm=wt
 release:
 	$(CC) $(NVCC_FLGAS) $(CUOPTS) $(SRC) -o $(EXE) -I$(INCLUDE) -L$(LIB) -lcudart
 
+clean:
+	rm -f *.o; rm -f $(EXE)
+
 run:
 	./$(EXE)
 

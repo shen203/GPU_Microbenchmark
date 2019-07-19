@@ -17,6 +17,9 @@ EXE = l1_lat_32f
 release:
 	$(CC) $(CUOPTS) $(SRC) -o $(EXE) -I$(INCLUDE) -L$(LIB) -lcudart
 
+clean:
+	rm -f *.o; rm -f $(EXE)
+
 run:
 	./$(EXE)
 
