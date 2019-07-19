@@ -49,6 +49,7 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, float*dsink, float*p
 	for(uint32_t i = tid; i<ARRAY_SIZE; i+=THREADS_NUM){
 		float* ptr = posArray+i;
 		// every warp loads all data in l2 cache
+		// use cg modifier to cache the load in L2 and bypass L1
 		asm volatile("{\t\n"
 			".reg .f32 data;\n\t"
 			"ld.global.cg.f32 data, [%1];\n\t"
@@ -63,7 +64,6 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, float*dsink, float*p
 	uint32_t start = 0;
 	asm volatile("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
 	
-	// benchmark starts
 	// load data from l2 cache and accumulate,
 	for(uint32_t i = 0; i<REPEAT_TIMES; i++){
 		for (uint32_t j = tid; j<TOTAL_THREADS; j+=THREADS_NUM){
@@ -117,13 +117,7 @@ int main(){
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
         gpuErrchk( cudaMemcpy(stopClk, stopClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
         gpuErrchk( cudaMemcpy(dsink, dsink_g, TOTAL_THREADS*sizeof(float), cudaMemcpyDeviceToHost) );
-/*
-        for(int i=0; i<32; i++){
-		//printf("startClk(%u) = %u, ", i, startClk[i]);
-		//printf("stopClk(%u) = %u, ", i, stopClk[i]);
-                printf("Clk(%u) = %u \n", i, stopClk[i]-startClk[i]);
-        }
-*/
+
 	double bw;
 	bw = ((double)(TOTAL_THREADS*REPEAT_TIMES*4))/((double)(stopClk[0]-startClk[0]));
 	printf("L2 bandwidth = %f (byte/cycle)\n", bw);

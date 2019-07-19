@@ -33,6 +33,7 @@ __global__ void l1_bw(uint32_t *startClk, uint32_t *stopClk, double *dsink, doub
 	// populate l1 cache to warm up
 	for (uint32_t i = tid; i<L1_SIZE; i+=THREADS_NUM) {
 		double* ptr = posArray + i;
+		// use ca modifier to cache the load in L1
 		asm volatile ("{\t\n"
 			".reg .f64 data;\n\t"
 			"ld.global.ca.f64 data, [%1];\n\t"

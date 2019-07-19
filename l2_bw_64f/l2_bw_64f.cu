@@ -1,7 +1,7 @@
 //This code is a modification of L2 cache benchmark from 
 //"Dissecting the NVIDIA Volta GPU Architecture via Microbenchmarking": https://arxiv.org/pdf/1804.06826.pdf
 
-//This benchmark measures the maximum read bandwidth of L2 cache for 64f
+//This benchmark measures the maximum read bandwidth of L2 cache for 64 bit
 //Compile this file using the following command to disable L1 cache:
 //    nvcc -Xptxas -dlcm=cg -Xptxas -dscm=wt l2_bw.cu
 
@@ -49,6 +49,7 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, double*dsink, double
 	for(uint32_t i = tid; i<ARRAY_SIZE; i+=THREADS_NUM){
 		double* ptr = posArray+i;
 		// every warp loads all data in l2 cache
+		// use cg modifier to cache the load in L2 and bypass L1
 		asm volatile("{\t\n"
 			".reg .f64 data;\n\t"
 			"ld.global.cg.f64 data, [%1];\n\t"

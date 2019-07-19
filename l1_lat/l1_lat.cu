@@ -11,7 +11,7 @@
 
 #define THREADS_NUM 1   //Launch only one thread to calcaulte the latency using a pointer-chasing array technique
 #define WARP_SIZE 32
-#define ITERS 32768       //iterate ovrer the array ITERS times
+#define ITERS 32768       //iterate over the array ITERS times
 #define ARRAY_SIZE 4096    //size of the array
 
 // GPU error check
@@ -45,6 +45,7 @@ __global__ void l1_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArray
 		uint64_t ptr1, ptr0;
 	
 		// populate l1 cache to warm up
+		// use ca modifier to cache the load in L1
 		asm volatile ("{\t\n"
 			"ld.global.ca.u64 %0, [%1];\n\t"
 			"}" : "=l"(ptr1) : "l"(ptr) : "memory"
@@ -58,7 +59,8 @@ __global__ void l1_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArray
 		asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
 
 
-		// pointer-chasing array
+		// pointer-chasing ITERS times
+		// use ca modifier to cache the load in L1
 		for(uint32_t i=0; i<ITERS; ++i) {	
 			asm volatile ("{\t\n"
 				"ld.global.ca.u64 %0, [%1];\n\t"

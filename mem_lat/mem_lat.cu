@@ -41,6 +41,7 @@ __global__ void mem_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArra
 		uint64_t ptr1, ptr0;
 	
 		// initialize the pointers with the start address
+		//Here, we use cache volatile modifier to ignore the L2 cache
 		asm volatile ("{\t\n"
 			"ld.global.cv.u64 %0, [%1];\n\t"
 			"}" : "=l"(ptr1) : "l"(ptr) : "memory"
@@ -55,9 +56,9 @@ __global__ void mem_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArra
 		// start timing
 		asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
 
-		//pointer chasing for ITERS times
+		// pointer-chasing ITERS times
+		//Here, we use cache volatile modifier to ignore the L2 cache
 		for(uint32_t i=tid; i<ITERS-THREADS_NUM; i+=THREADS_NUM) {	
-			//Here, we use cache volatile modifier to ignore the L2 cache
 			asm volatile ("{\t\n"
 				"ld.global.cv.u64 %0, [%1];\n\t"
 				"}" : "=l"(ptr0) : "l"((uint64_t*)ptr1) : "memory"
@@ -69,7 +70,6 @@ __global__ void mem_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArra
 		asm volatile("mov.u32 %0, %%clock;" : "=r"(stop) :: "memory");
 
 		// write time and data back to memory
-
 		startClk[tid] = start;
 		stopClk[tid] = stop;
 		dsink[tid] = ptr1;

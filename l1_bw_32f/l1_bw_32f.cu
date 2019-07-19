@@ -33,6 +33,7 @@ __global__ void l1_bw(uint32_t *startClk, uint32_t *stopClk, float *dsink, float
 	// warp up L1 cache
 	for (uint32_t i = tid; i<L1_SIZE; i+=THREADS_NUM) {
 		float* ptr = posArray + i;
+		// use ca modifier to cache the load in L1
 		asm volatile ("{\t\n"
 			".reg .f32 data;\n\t"
 			"ld.global.ca.f32 data, [%1];\n\t"
