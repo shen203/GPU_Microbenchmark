@@ -1,7 +1,7 @@
 //This code is a modification of L2 cache benchmark from 
 //"Dissecting the NVIDIA Volta GPU Architecture via Microbenchmarking": https://arxiv.org/pdf/1804.06826.pdf
 
-//This benchmark measures the maximum read bandwidth of L2 cache
+//This benchmark measures the maximum read bandwidth of L2 cache for 64f
 //Compile this file using the following command to disable L1 cache:
 //    nvcc -Xptxas -dlcm=cg -Xptxas -dscm=wt l2_bw.cu
 

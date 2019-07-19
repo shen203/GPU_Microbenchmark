@@ -35,7 +35,7 @@ Load posArray and add sink to generate read traffic
 Repeat the previous step while offsetting posArray by one each iteration
 Stop timing and store data
 */
-__global__ void l2_bw (float* A,  float* B, float* C, float* D, float* E, float* F){
+__global__ void mem_bw (float* A,  float* B, float* C, float* D, float* E, float* F){
 	// block and thread index
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -97,7 +97,7 @@ int main(){
 	gpuErrchk( cudaMemcpy(E_g, E, ARRAY_SIZE*sizeof(float), cudaMemcpyHostToDevice) );
 	gpuErrchk( cudaMemcpy(F_g, F, ARRAY_SIZE*sizeof(float), cudaMemcpyHostToDevice) );
 
-        l2_bw<<<BLOCKS_NUM,THREADS_NUM>>>(A_g, B_g, C_g, D_g, E_g, F_g);
+        mem_bw<<<BLOCKS_NUM,THREADS_NUM>>>(A_g, B_g, C_g, D_g, E_g, F_g);
 	gpuErrchk( cudaPeekAtLastError() );
 	
 	gpuErrchk( cudaMemcpy(C, C_g, ARRAY_SIZE*sizeof(float), cudaMemcpyDeviceToHost) );

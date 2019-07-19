@@ -1,7 +1,7 @@
 //This code is a modification of L1 cache benchmark from 
 //"Dissecting the NVIDIA Volta GPU Architecture via Microbenchmarking": https://arxiv.org/pdf/1804.06826.pdf
 
-//This benchmark measures the maximum read bandwidth of L1 cache
+//This benchmark measures the maximum read bandwidth of L1 cache for 32 bit read
 
 //This code have been tested on Volta V100 architecture
 

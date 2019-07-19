@@ -1,7 +1,7 @@
 //This code is a modification of L2 cache benchmark from 
 //"Dissecting the NVIDIA Volta GPU Architecture via Microbenchmarking": https://arxiv.org/pdf/1804.06826.pdf
 
-//This benchmark measures the read latency of L2 cache
+//This benchmark measures the read latency of L2 cache for 64f
 
 //This code have been tested on Volta V100 architecture
 
@@ -24,7 +24,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
         }
 }
 
-__global__ void l1_bw(uint32_t *startClk, uint32_t *stopClk, double *dsink, double *posArray){
+__global__ void l2_lat(uint32_t *startClk, uint32_t *stopClk, double *dsink, double *posArray){
 	
 	// thread index
 	uint32_t tid = threadIdx.x;
@@ -108,7 +108,7 @@ int main(){
 	
 	gpuErrchk( cudaMemcpy(posArray_g, posArray, ARRAY_SIZE*sizeof(double), cudaMemcpyHostToDevice) );
 
-	l1_bw<<<1,THREADS_NUM>>>(startClk_g, stopClk_g, dsink_g, posArray_g);
+	l2_lat<<<1,THREADS_NUM>>>(startClk_g, stopClk_g, dsink_g, posArray_g);
 
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
 	gpuErrchk( cudaMemcpy(stopClk, stopClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
