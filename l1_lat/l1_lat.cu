@@ -1,7 +1,7 @@
 //This code is a modification of L1 cache benchmark from 
 //"Dissecting the NVIDIA Volta GPU Architecture via Microbenchmarking": https://arxiv.org/pdf/1804.06826.pdf
 
-//This benchmark measures the latency of L1 cache 32f read
+//This benchmark measures the latency of L1 cache
 
 //This code have been tested on Volta V100 architecture
 
@@ -44,8 +44,8 @@ __global__ void l1_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArray
 		uint64_t *ptr = posArray + tid;
 		uint64_t ptr1, ptr0;
 	
-		// populate l1 cache to warm up
-		// use ca modifier to cache the load in L1
+		// initialize the thread pointer with the start address of the array
+		// use ca modifier to cache the in L1
 		asm volatile ("{\t\n"
 			"ld.global.ca.u64 %0, [%1];\n\t"
 			"}" : "=l"(ptr1) : "l"(ptr) : "memory"
@@ -66,7 +66,7 @@ __global__ void l1_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArray
 				"ld.global.ca.u64 %0, [%1];\n\t"
 				"}" : "=l"(ptr0) : "l"((uint64_t*)ptr1) : "memory"
 			);
-			ptr1 = ptr0;
+			ptr1 = ptr0;    //swap the register for the next load
 
 		}
 

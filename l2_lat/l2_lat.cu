@@ -62,7 +62,7 @@ __global__ void l2_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArray
 				"ld.global.cg.u64 %0, [%1];\n\t"
 				"}" : "=l"(ptr0) : "l"((uint64_t*)ptr1) : "memory"
 			);
-			ptr1 = ptr0;
+			ptr1 = ptr0;    //swap the register for the next load
 		}
 
 		// stop timing
