@@ -51,11 +51,13 @@ __global__ void l1_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArray
 	for(uint32_t i=0; i<ITERS; ++i) {	
 		// load data from l1 cache and accumulate
 		asm volatile ("{\t\n"
-			"ld.global.ca.u64 %0, [%0];\n\t"
-			"}" : "+l"(ptr0) :  : "memory"
+			"ld.global.ca.u64 %0, [%1];\n\t"
+			"}" : "=l"(ptr0) : "l"((uint64_t*)ptr1) : "memory"
 		);
+		ptr1 = ptr0;
+//		ptr1 = ptr0;
 		// synchronize all threads
-		asm volatile("bar.sync 0;");
+//		asm volatile("bar.sync 0;");
 	}
 	// stop timing
 	uint32_t stop = 0;
