@@ -15,7 +15,7 @@
 #define BLOCKS_NUM 160
 #define THREADS_NUM 1024 //thread number/block
 #define TOTAL_THREADS (BLOCKS_NUM*THREADS_NUM)
-#define ARRAY_SIZE 805306368
+#define ARRAY_SIZE 8388608
 #define WARP_SIZE 32 
 #define L2_SIZE 98304 //number of floats can store
 
