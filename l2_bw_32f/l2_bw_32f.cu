@@ -12,13 +12,13 @@
 #include <cuda.h>
 
 //Array size must not exceed L2 size 
-#define BLOCKS_NUM 80
+#define BLOCKS_NUM 160
 #define THREADS_NUM 1024 //thread number/block
 #define TOTAL_THREADS (BLOCKS_NUM * THREADS_NUM)
-#define REPEAT_TIMES 64 
-#define ARRAY_SIZE (TOTAL_THREADS + REPEAT_TIMES)
+#define REPEAT_TIMES 2048 
 #define WARP_SIZE 32 
-#define L2_SIZE 98304 //number of floats can store
+#define ARRAY_SIZE (TOTAL_THREADS + REPEAT_TIMES*WARP_SIZE)
+#define L2_SIZE 1572864 //L2 size in 32-bit. Volta L2 size is 6MB.
 
 // GPU error check
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -36,25 +36,28 @@ Load posArray and add sink to generate read traffic
 Repeat the previous step while offsetting posArray by one each iteration
 Stop timing and store data
 */
+
 __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, float*dsink, float*posArray){
 	// block and thread index
 	uint32_t tid = threadIdx.x;
 	uint32_t bid = blockIdx.x;
+	uint32_t uid = bid * blockDim.x + tid;
 
 	// a register to avoid compiler optimization
 	float sink = 0;
 	
 	// warm up l2 cache
-	for(uint32_t i = tid; i<ARRAY_SIZE; i+=THREADS_NUM){
-		float* ptr = posArray+i;
+	//for(uint32_t i = uid; i<ARRAY_SIZE; i+=TOTAL_THREADS){
+		float* ptr = posArray+uid;
 		// every warp loads all data in l2 cache
+		// use cg modifier to cache the load in L2 and bypass L1
 		asm volatile("{\t\n"
 			".reg .f32 data;\n\t"
 			"ld.global.cg.f32 data, [%1];\n\t"
 			"add.f32 %0, data, %0;\n\t"
 			"}" : "+f"(sink) : "l"(ptr) : "memory"
 		);
-	}
+	//}
 	
 	asm volatile("bar.sync 0;");	
 
@@ -62,20 +65,20 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, float*dsink, float*p
 	uint32_t start = 0;
 	asm volatile("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
 	
-	// benchmark starts
 	// load data from l2 cache and accumulate,
 	for(uint32_t i = 0; i<REPEAT_TIMES; i++){
-		for (uint32_t j = tid; j<TOTAL_THREADS; j+=THREADS_NUM){
-			float* ptr = posArray+i+j;
+		//for (uint32_t j = tid; j<TOTAL_THREADS; j+=THREADS_NUM){
+			float* ptr = posArray+(i*WARP_SIZE)+uid;
 			asm volatile("{\t\n"
 				".reg .f32 data;\n\t"
 				"ld.global.cg.f32 data, [%1];\n\t"
 				"add.f32 %0, data, %0;\n\t"
 				"}" : "+f"(sink) : "l"(ptr) : "memory"
 			);
-		}
+		//}
 	}
 	asm volatile("bar.sync 0;");
+
 	// stop timing
 	uint32_t stop = 0;
 	asm volatile("mov.u32 %0, %%clock;" : "=r"(stop) :: "memory");
@@ -115,17 +118,12 @@ int main(){
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
         gpuErrchk( cudaMemcpy(stopClk, stopClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
         gpuErrchk( cudaMemcpy(dsink, dsink_g, TOTAL_THREADS*sizeof(float), cudaMemcpyDeviceToHost) );
-/*
-        for(int i=0; i<32; i++){
-		//printf("startClk(%u) = %u, ", i, startClk[i]);
-		//printf("stopClk(%u) = %u, ", i, stopClk[i]);
-                printf("Clk(%u) = %u \n", i, stopClk[i]-startClk[i]);
-        }
-*/
-	double bw;
-	bw = ((double)(TOTAL_THREADS*REPEAT_TIMES*4))/((double)(stopClk[0]-startClk[0]));
-	printf("bandwidth = %f (byte/cycle)\n", bw);
-        printf("Total Clk number = %l \n", stopClk-startClk);
+
+	float bw;
+	unsigned long long data = (unsigned long long)TOTAL_THREADS*REPEAT_TIMES*4;
+	bw = (float)(data)/((float)(stopClk[0]-startClk[0]));
+	printf("L2 bandwidth = %f (byte/cycle)\n", bw);
+        printf("Total Clk number = %u \n", (stopClk[0]-startClk[0]));
 
         return 0;
 }

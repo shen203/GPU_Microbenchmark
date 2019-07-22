@@ -14,7 +14,7 @@ SRC = mem_lat.cu
 
 EXE = mem_lat
 
-NVCC_FLGAS = -Xptxas -dlcm=cg -Xptxas -dscm=wt
+NVCC_FLGAS = -Xptxas -dlcm=cv -Xptxas -dscm=wt
 
 release:
 	$(CC) $(NVCC_FLGAS) $(CUOPTS) $(SRC) -o $(EXE) -I$(INCLUDE) -L$(LIB) -lcudart

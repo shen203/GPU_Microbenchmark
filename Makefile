@@ -15,4 +15,3 @@ all:
 
 clean:
 	cd $(BIN_DIR); rm -f *
-	for dir in $(BASE_DIR) ; do cd $$dir ; make clean ; cd .. ; done
