@@ -11,8 +11,11 @@
 
 #define THREADS_NUM 4  //HERE, we launch four threads, to ensure that one request is equal to DRAM trascation, 4 thread * 8 bytes = 32 bytes (= min DRAM trascation)
 #define WARP_SIZE 32
-#define ITERS 32768 
-#define ARRAY_SIZE 1572864   //pointer-chasing array size in 64-bit. total array size is 12 MB which larger than L2 cache size (6 MB in Volta) to avoid l2 cache resident from the copy engine
+#define ITERS 32768    //1MB of pointer chasing, ITERS*THREADS_NUM*8 bytes
+#define ARRAY_SIZE 917504   //pointer-chasing array size in 64-bit. total array size is 7 MB which larger than L2 cache size (6 MB in Volta) to avoid l2 cache resident from the copy engine
+#define BLOCKS 160
+#define THREADS_PER_BLOCK 1024
+#define TOTAL_THREADS  BLOCKS*THREADS_PER_BLOCK
 
 // GPU error check
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -27,16 +30,18 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 __global__ void mem_lat(uint32_t *startClk, uint32_t *stopClk, uint64_t *posArray, uint64_t *dsink){
 	// thread index
 	uint32_t tid = threadIdx.x;
+	uint32_t uid = blockIdx.x * blockDim.x + tid;
 
 	// initialize pointer-chasing array
-	for (uint32_t i=tid; i<(ARRAY_SIZE-THREADS_NUM); i+=THREADS_NUM)
+	for (uint32_t i=uid; i<(ARRAY_SIZE-THREADS_NUM); i+=TOTAL_THREADS)
 		posArray[i] = (uint64_t)(posArray + i + THREADS_NUM);
 
-	// initialize the tail to reference to the head of the array
-	posArray[ARRAY_SIZE-(THREADS_NUM-tid)] = (uint64_t)posArray + tid;
 
+	if(uid < THREADS_NUM){   //only THREADS_NUM has to be active here
 
-	if(tid < THREADS_NUM){
+		// initialize the tail to reference to the head of the array
+		posArray[ARRAY_SIZE-(THREADS_NUM-tid)] = (uint64_t)posArray + tid;
+
 		uint64_t *ptr = posArray + tid;
 		uint64_t ptr1, ptr0;
 	
@@ -91,13 +96,14 @@ int main(){
 	gpuErrchk( cudaMalloc(&posArray_g, ARRAY_SIZE*sizeof(uint64_t)) );
 	gpuErrchk( cudaMalloc(&dsink_g, THREADS_NUM*sizeof(uint64_t)) );
 	
-	mem_lat<<<1,THREADS_NUM>>>(startClk_g, stopClk_g, posArray_g, dsink_g);
+	mem_lat<<<BLOCKS,THREADS_PER_BLOCK>>>(startClk_g, stopClk_g, posArray_g, dsink_g);
 	gpuErrchk( cudaPeekAtLastError() );
 
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
 	gpuErrchk( cudaMemcpy(stopClk, stopClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
 	gpuErrchk( cudaMemcpy(dsink, dsink_g, THREADS_NUM*sizeof(uint64_t), cudaMemcpyDeviceToHost) );
-	printf("Mem Latency for %d threads = %u \n", THREADS_NUM, (stopClk[0]-startClk[0]));
+	printf("Mem latency = %12.4f cycles \n", (float)(stopClk[0]-startClk[0])/(float)(ITERS/THREADS_NUM));
+	printf("Total Clk number = %u \n", stopClk[0]-startClk[0]);
 
 	return 0;
 } 

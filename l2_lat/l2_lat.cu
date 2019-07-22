@@ -97,7 +97,8 @@ int main(){
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
 	gpuErrchk( cudaMemcpy(stopClk, stopClk_g, THREADS_NUM*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
 	gpuErrchk( cudaMemcpy(dsink, dsink_g, THREADS_NUM*sizeof(uint64_t), cudaMemcpyDeviceToHost) );
-	printf("L1 Latency for %d threads = %u \n", THREADS_NUM, (stopClk[0]-startClk[0]));
+	printf("L2 Latency = %12.4f cycles \n", (float)(stopClk[0]-startClk[0])/ITERS);
+	printf("Total Clk number = %u \n", stopClk[0]-startClk[0]);
 
 	return 0;
 } 
