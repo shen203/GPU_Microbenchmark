@@ -47,7 +47,6 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, float*dsink, float*p
 	float sink = 0;
 	
 	// warm up l2 cache
-	//for(uint32_t i = uid; i<ARRAY_SIZE; i+=TOTAL_THREADS){
 		float* ptr = posArray+uid;
 		// every warp loads all data in l2 cache
 		// use cg modifier to cache the load in L2 and bypass L1
@@ -57,7 +56,6 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, float*dsink, float*p
 			"add.f32 %0, data, %0;\n\t"
 			"}" : "+f"(sink) : "l"(ptr) : "memory"
 		);
-	//}
 	
 	asm volatile("bar.sync 0;");	
 
@@ -67,7 +65,6 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, float*dsink, float*p
 	
 	// load data from l2 cache and accumulate,
 	for(uint32_t i = 0; i<REPEAT_TIMES; i++){
-		//for (uint32_t j = tid; j<TOTAL_THREADS; j+=THREADS_NUM){
 			float* ptr = posArray+(i*WARP_SIZE)+uid;
 			asm volatile("{\t\n"
 				".reg .f32 data;\n\t"
@@ -75,7 +72,6 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, float*dsink, float*p
 				"add.f32 %0, data, %0;\n\t"
 				"}" : "+f"(sink) : "l"(ptr) : "memory"
 			);
-		//}
 	}
 	asm volatile("bar.sync 0;");
 
