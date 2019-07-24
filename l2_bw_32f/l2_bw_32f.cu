@@ -46,8 +46,8 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, float*dsink, float*p
 	float sink = 0;
 	
 	// warm up l2 cache
-	for(uint32_t i = tid; i<ARRAY_SIZE; i+=TOTAL_THREADS){
-		float* ptr = posArray+uid;
+	for(uint32_t i = uid; i<ARRAY_SIZE; i+=TOTAL_THREADS){
+		float* ptr = posArray+i;
 		// every warp loads all data in l2 cache
 		// use cg modifier to cache the load in L2 and bypass L1
 		asm volatile("{\t\n"
