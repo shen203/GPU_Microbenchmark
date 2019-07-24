@@ -11,13 +11,13 @@
 #include <stdlib.h>
 #include <cuda.h>
 
-//Array size must not exceed L2 size 
+
 #define BLOCKS_NUM 160
 #define THREADS_NUM 1024 //thread number/block
 #define TOTAL_THREADS (BLOCKS_NUM * THREADS_NUM)
 #define REPEAT_TIMES 2048
 #define WARP_SIZE 32 
-#define ARRAY_SIZE (TOTAL_THREADS + REPEAT_TIMES*WARP_SIZE)
+#define ARRAY_SIZE (TOTAL_THREADS + REPEAT_TIMES*WARP_SIZE)    //Array size must not exceed L2 size 
 #define L2_SIZE 786432 //number of doubles L2 can store
 
 // GPU error check
@@ -47,7 +47,7 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, double*dsink, double
 	double sink = 0;
 	
 	// warm up l2 cache
-	//for(uint32_t i = tid; i<ARRAY_SIZE; i+=THREADS_NUM){
+	for(uint32_t i = tid; i<ARRAY_SIZE; i+=TOTAL_THREADS){
 		double* ptr = posArray+uid;
 		// every warp loads all data in l2 cache
 		// use cg modifier to cache the load in L2 and bypass L1
@@ -57,7 +57,7 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, double*dsink, double
 			"add.f64 %0, data, %0;\n\t"
 			"}" : "+d"(sink) : "l"(ptr) : "memory"
 		);
-	//}
+	}
 	
 	asm volatile("bar.sync 0;");	
 
@@ -68,7 +68,6 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, double*dsink, double
 	// benchmark starts
 	// load data from l2 cache and accumulate,
 	for(uint32_t i = 0; i<REPEAT_TIMES; i++){
-		//for (uint32_t j = tid; j<TOTAL_THREADS; j+=THREADS_NUM){
 			double* ptr = posArray+(i*WARP_SIZE)+uid;
 			asm volatile("{\t\n"
 				".reg .f64 data;\n\t"
@@ -76,7 +75,6 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, double*dsink, double
 				"add.f64 %0, data, %0;\n\t"
 				"}" : "+d"(sink) : "l"(ptr) : "memory"
 			);
-		//}
 	}
 	asm volatile("bar.sync 0;");
 
