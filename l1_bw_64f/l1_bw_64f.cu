@@ -10,12 +10,12 @@
 #include <cuda.h>
 
 #define THREADS_PER_BLOCK 1024
-#define THREADS_PER_SM 2048
-#define BLOCKS_NUM 160
+#define THREADS_PER_SM 1024
+#define BLOCKS_NUM 1
 #define TOTAL_THREADS (THREADS_PER_BLOCK*BLOCKS_NUM)
 #define WARP_SIZE 32
 #define REPEAT_TIMES 4096
-#define ARRAY_SIZE (THREADS_PER_SM+REPEAT_TIMES*WARP_SIZE)   //ARRAY_SIZE has to be less than L1_SIZE
+#define ARRAY_SIZE 8192   //ARRAY_SIZE has to be less than L1_SIZE
 #define L1_SIZE 16384  //L1 size in 64-bit. Volta L1 size is 128KB, i.e. 16K of 64-bit
 
 // GPU error check
@@ -58,7 +58,7 @@ __global__ void l1_bw(uint32_t *startClk, uint32_t *stopClk, double *dsink, doub
 	// load data from l1 cache and accumulate
 	for(uint32_t j=0; j<REPEAT_TIMES; j++){
 	       // for (uint32_t i = tid; i<(L1_SIZE/2); i+=THREADS_NUM) {
-        	        double* ptr = posArray + tid + (j*WARP_SIZE);
+        	        double* ptr = posArray + ((tid + (j*WARP_SIZE))%ARRAY_SIZE);
                 	asm volatile ("{\t\n"
                         	".reg .f64 data;\n\t"
 				"ld.global.ca.f64 data, [%1];\n\t"
