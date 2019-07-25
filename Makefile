@@ -6,6 +6,7 @@ all:
 	mkdir -p $(BIN_DIR)
 	cd l1_bw_32f;		make;	cp l1_bw_32f $(BIN_DIR)
 	cd l1_bw_64f; 		make;	cp l1_bw_64f $(BIN_DIR)
+	cd l1_bw_128;		make;	cp l1_bw_128 $(BIN_DIR)
 	cd l1_lat; 		make;	cp l1_lat $(BIN_DIR)
 	cd l2_bw_32f;  		make;	cp l2_bw_32f $(BIN_DIR)
 	cd l2_bw_64f; 		make;	cp l2_bw_64f $(BIN_DIR)

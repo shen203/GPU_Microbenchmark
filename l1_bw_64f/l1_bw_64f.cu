@@ -14,8 +14,8 @@
 #define BLOCKS_NUM 1
 #define TOTAL_THREADS (THREADS_PER_BLOCK*BLOCKS_NUM)
 #define WARP_SIZE 32
-#define REPEAT_TIMES 4096
-#define ARRAY_SIZE 8192   //ARRAY_SIZE has to be less than L1_SIZE
+#define REPEAT_TIMES 256
+#define ARRAY_SIZE 8192    //ARRAY_SIZE has to be less than L1_SIZE
 #define L1_SIZE 16384  //L1 size in 64-bit. Volta L1 size is 128KB, i.e. 16K of 64-bit
 
 // GPU error check
@@ -34,7 +34,8 @@ __global__ void l1_bw(uint32_t *startClk, uint32_t *stopClk, double *dsink, doub
 	uint32_t uid = blockIdx.x * blockDim.x + tid;
 	
 	// a register to avoid compiler optimization
-	double sink = 0;
+	double sink0 = 0;
+	double sink1 = 0;
 	
 	// populate l1 cache to warm up
 	for (uint32_t i = tid; i<ARRAY_SIZE; i+=THREADS_PER_BLOCK) {
@@ -44,7 +45,7 @@ __global__ void l1_bw(uint32_t *startClk, uint32_t *stopClk, double *dsink, doub
 			".reg .f64 data;\n\t"
 			"ld.global.ca.f64 data, [%1];\n\t"
 			"add.f64 %0, data, %0;\n\t"
-			"}" : "+d"(sink) : "l"(ptr) : "memory"
+			"}" : "+d"(sink0) : "l"(ptr) : "memory"
 		);
 	}
 	
@@ -57,15 +58,15 @@ __global__ void l1_bw(uint32_t *startClk, uint32_t *stopClk, double *dsink, doub
 	
 	// load data from l1 cache and accumulate
 	for(uint32_t j=0; j<REPEAT_TIMES; j++){
-	       // for (uint32_t i = tid; i<(L1_SIZE/2); i+=THREADS_NUM) {
-        	        double* ptr = posArray + ((tid + (j*WARP_SIZE))%ARRAY_SIZE);
+        	        double* ptr = posArray + ((tid + (j*WARP_SIZE*2))%ARRAY_SIZE);
                 	asm volatile ("{\t\n"
-                        	".reg .f64 data;\n\t"
-				"ld.global.ca.f64 data, [%1];\n\t"
-				"add.f64 %0, data, %0;\n\t"
-				"}" : "+d"(sink) : "l"(ptr) : "memory"
+                        	".reg .f64 data<2>;\n\t"
+				"ld.global.ca.f64 data0, [%2+0];\n\t"
+				"ld.global.ca.f64 data1, [%2+256];\n\t"
+				"add.f64 %0, data0, %0;\n\t"
+				"add.f64 %1, data1, %1;\n\t"
+				"}" : "+d"(sink0),"+d"(sink1) : "l"(ptr) : "memory"
                 	);
-        	//}
 	}
 
 	// synchronize all threads
@@ -78,7 +79,7 @@ __global__ void l1_bw(uint32_t *startClk, uint32_t *stopClk, double *dsink, doub
 	// write time and data back to memory
 	startClk[uid] = start;
 	stopClk[uid] = stop;
-	dsink[uid] = sink;
+	dsink[uid] = sink0+sink1;
 }
 
 int main(){
@@ -110,7 +111,7 @@ int main(){
 	gpuErrchk( cudaMemcpy(dsink, dsink_g, TOTAL_THREADS*sizeof(double), cudaMemcpyDeviceToHost) );
 
         double bw;
-	bw = (double)(REPEAT_TIMES*THREADS_PER_SM*8)/((double)(stopClk[0]-startClk[0]));
+	bw = (double)(REPEAT_TIMES*THREADS_PER_SM*8*2)/((double)(stopClk[0]-startClk[0]));
 	printf("L1 bandwidth = %f (byte/clk/SM)\n", bw);
 	printf("Total Clk number = %u \n", stopClk[0]-startClk[0]);
 
