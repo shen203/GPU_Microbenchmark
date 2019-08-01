@@ -69,7 +69,7 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, float*dsink, float*p
 	
 	// load data from l2 cache and accumulate,
 	for(uint32_t i = 0; i<REPEAT_TIMES; i++){
-			float* ptr = posArray+(((i*WARP_SIZE*4)+uid)%ARRAY_SIZE);
+			float* ptr = posArray+(((i*WARP_SIZE*4)+uid*4)%ARRAY_SIZE);
 		asm volatile ("{\t\n"
 			".reg .f32 data<4>;\n\t"
 			"ld.global.cg.v4.f32 {data0,data1,data2,data3}, [%4];\n\t"
