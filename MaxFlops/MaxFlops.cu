@@ -36,6 +36,9 @@ __global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, T *data1, T *da
 	for (int j=0 ; j<REPEAT_TIMES ; ++j) {
 		asm volatile ("{\t\n"
 				"fma.rn.f32 %0, %1, %2 , %0;\n\t"
+				"fma.rn.f32 %0, %1, %2 , %0;\n\t"
+				"fma.rn.f32 %0, %1, %2 , %0;\n\t"
+				"fma.rn.f32 %0, %1, %2 , %0;\n\t"
 				"}" : "+f"(result),"+f"(s1),"+f"(s2)
 		);
 
@@ -90,7 +93,7 @@ int main(){
 	gpuErrchk( cudaMemcpy(res, res_g, TOTAL_THREADS*sizeof(float), cudaMemcpyDeviceToHost) );
 
 	float flops;
-	flops = (float)(REPEAT_TIMES*THREADS_PER_SM*2)/((float)(stopClk[0]-startClk[0]));
+	flops = (float)(REPEAT_TIMES*THREADS_PER_SM*8)/((float)(stopClk[0]-startClk[0]));
 	printf("FLOP per SM = %f (flop/clk/SM)\n", flops);
 	printf("Total Clk number = %u \n", stopClk[0]-startClk[0]);
 
