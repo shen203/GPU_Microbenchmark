@@ -30,3 +30,7 @@ profile:
 
 events:
 	nvprof  --events elapsed_cycles_sm ./$(EXE)
+
+profileall:
+	nvprof --concurrent-kernels off --print-gpu-trace -u us --metrics all --demangling off --csv --log-file data.csv ./$(EXE)
+

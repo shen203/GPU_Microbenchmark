@@ -60,7 +60,7 @@ int i = blockDim.x * blockIdx.x + threadIdx.x;
 
 }
   
-__global__ void stride(const float* A, float* C, int stride)
+__global__ void l1_stride(const float* A, float* C, int stride)
 
 {
 
@@ -110,7 +110,7 @@ void VectorAddition(int N, int threadsPerBlock, int stride)
   
   
 	for (int i = 0; i < 1; i++) {
-    stride<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_C, stride);
+    stride32<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_C, stride);
     getLastCudaError("kernel launch failure");
 	checkCudaErrors(cudaThreadSynchronize());
 	}
