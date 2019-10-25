@@ -50,13 +50,13 @@ inline void __getLastCudaError(const char *errorMessage, const char *file, const
 // Device code
 
 
-__global__ void stride32(const float* A, float* C, int stride)
+__global__ void l1_stride_cons(const float* A, float* C, int stride)
 
 {
 
 int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-	C[i*32] = A[i*32];
+	C[i*stride] = A[i*stride];
 
 }
   
@@ -110,7 +110,7 @@ void VectorAddition(int N, int threadsPerBlock, int stride)
   
   
 	for (int i = 0; i < 1; i++) {
-    stride32<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_C, stride);
+    l1_stride_cons<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_C, stride);
     getLastCudaError("kernel launch failure");
 	checkCudaErrors(cudaThreadSynchronize());
 	}
