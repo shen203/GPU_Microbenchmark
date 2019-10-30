@@ -12,7 +12,7 @@
 #define SHARED_MEM_SIZE_BYTE (48*1024) //size in bytes, max 96KB for v100
 #define SHARED_MEM_SIZE (SHARED_MEM_SIZE_BYTE/8)
 //#define SHARED_MEM_SIZE (16384)
-#define ITERS (SHARED_MEM_SIZE)
+#define ITERS (4096)
 
 #define BLOCKS_NUM 1
 #define THREADS_PER_BLOCK 1024
@@ -86,7 +86,7 @@ int main(){
 	gpuErrchk( cudaMalloc(&stopClk_g, TOTAL_THREADS*sizeof(uint32_t)) );
 	gpuErrchk( cudaMalloc(&dsink_g, TOTAL_THREADS*sizeof(uint64_t)) );
 	
-	shared_bw<<<BLOCKS_NUM,THREADS_PER_BLOCK>>>(startClk_g, stopClk_g, dsink_g, 1024);
+	shared_bw<<<BLOCKS_NUM,THREADS_PER_BLOCK>>>(startClk_g, stopClk_g, dsink_g, 1025);
     gpuErrchk( cudaPeekAtLastError() );
 	
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );

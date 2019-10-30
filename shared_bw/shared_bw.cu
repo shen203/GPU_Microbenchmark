@@ -12,7 +12,7 @@
 #define SHARED_MEM_SIZE_BYTE (48*1024) //size in bytes, max 96KB for v100
 #define SHARED_MEM_SIZE (SHARED_MEM_SIZE_BYTE/4)
 //#define SHARED_MEM_SIZE (16384)
-#define ITERS (SHARED_MEM_SIZE)
+#define ITERS (4096)
 
 #define BLOCKS_NUM 1
 #define THREADS_PER_BLOCK 1024
