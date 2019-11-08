@@ -9,7 +9,7 @@
 #define BLOCKS_NUM 1
 #define TOTAL_THREADS (THREADS_PER_BLOCK*BLOCKS_NUM)
 #define WARP_SIZE 32
-#define REPEAT_TIMES 4096
+#define REPEAT_TIMES 4096*4
 
 // GPU error check
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -87,7 +87,7 @@ int main(){
 	gpuErrchk( cudaMemcpy(res, res_g, TOTAL_THREADS*sizeof(half), cudaMemcpyDeviceToHost) );
 
 	float latency;
-	latency = ((float)(stopClk[0]-startClk[0]))/((float)(REPEAT_TIMES*4));
+	latency = ((float)(stopClk[0]-startClk[0]))/((float)(REPEAT_TIMES));
 	printf("int32 latency = %f (clk)\n", latency);
 	printf("Total Clk number = %u \n", stopClk[0]-startClk[0]);
 
