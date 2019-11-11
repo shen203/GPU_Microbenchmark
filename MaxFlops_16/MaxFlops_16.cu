@@ -21,12 +21,14 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 
 
-template <class T>
-__global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, T *data1, T *data2, T *res) {
+__global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, half *data1, half *data2, half *data3, half *data4, half *res) {
 	int gid = blockIdx.x*blockDim.x + threadIdx.x;
-	T s1 = data1[gid];
-	register T s2 = data2[gid];
-	register T result = s1;
+	half s2 = data2[gid];
+	half s4 = data4[gid];
+	half2 mult = __halves2half2(s2, s4);
+	half result1 = data1[gid];
+	half result2 = data3[gid];
+	half2 result = __halves2half2(result1, result2);
 
 	// synchronize all threads
 	asm volatile ("bar.sync 0;");
@@ -36,8 +38,7 @@ __global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, T *data1, T *da
 	asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
 
 	for (int j=0 ; j<REPEAT_TIMES ; ++j) {
-		result = result*s2+result;
-
+		result = result*mult+result;
 	}
 	// synchronize all threads
 	asm volatile("bar.sync 0;");
@@ -49,7 +50,7 @@ __global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, T *data1, T *da
 	// write time and data back to memory
 	startClk[gid] = start;
 	stopClk[gid] = stop;
-	res[gid] = result;
+	res[gid] = __high2half(result) + __low2half(result);
 }
 
 int main(){
@@ -79,7 +80,7 @@ int main(){
 	gpuErrchk( cudaMemcpy(data1_g, data1, TOTAL_THREADS*sizeof(half), cudaMemcpyHostToDevice) );
 	gpuErrchk( cudaMemcpy(data2_g, data2, TOTAL_THREADS*sizeof(half), cudaMemcpyHostToDevice) );
 
-	max_flops<half><<<BLOCKS_NUM,THREADS_PER_BLOCK>>>(startClk_g, stopClk_g, data1_g, data2_g, res_g);
+	max_flops<<<BLOCKS_NUM,THREADS_PER_BLOCK>>>(startClk_g, stopClk_g, data1_g, data2_g, data1_g, data2_g, res_g);
 	gpuErrchk( cudaPeekAtLastError() );
 
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
@@ -87,7 +88,7 @@ int main(){
 	gpuErrchk( cudaMemcpy(res, res_g, TOTAL_THREADS*sizeof(half), cudaMemcpyDeviceToHost) );
 
 	float flops;
-	flops = (float)(REPEAT_TIMES*THREADS_PER_SM)/((float)(stopClk[0]-startClk[0]));
+	flops = (float)(REPEAT_TIMES*THREADS_PER_SM*4)/((float)(stopClk[0]-startClk[0]));
 	printf("FLOP per SM = %f (flop/clk/SM)\n", flops);
 	printf("Total Clk number = %u \n", stopClk[0]-startClk[0]);
 
