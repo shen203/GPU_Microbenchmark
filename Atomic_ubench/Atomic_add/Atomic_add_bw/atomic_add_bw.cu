@@ -86,10 +86,10 @@ int main(){
 	gpuErrchk( cudaMemcpy(res, res_g, TOTAL_THREADS*sizeof(int32_t), cudaMemcpyDeviceToHost) );
 
 	float bw;
-	uint32_t time = *std::max_element(&stopClk[0],&stopClk[TOTAL_THREADS])-*std::min_element(&startClk[0],&startClk[TOTAL_THREADS]);
-	bw = ((float)(REPEAT_TIMES*TOTAL_THREADS)/(float)(time));
+	uint32_t total_time = *std::max_element(&stopClk[0],&stopClk[TOTAL_THREADS])-*std::min_element(&startClk[0],&startClk[TOTAL_THREADS]);
+	bw = ((float)(REPEAT_TIMES*TOTAL_THREADS)/(float)(total_time));
 	printf("int32 bendwidth = %f (byte/clk)\n", bw);
-	printf("Total Clk number = %u \n", time);
+	printf("Total Clk number = %u \n", total_time);
 
 	return 0;
 } 
