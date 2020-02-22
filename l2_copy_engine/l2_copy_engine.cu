@@ -45,19 +45,6 @@ __global__ void l2_bw (uint32_t*startClk, uint32_t*stopClk, float*dsink, float*p
 	// a register to avoid compiler optimization
 	float sink = 0;
 	
-	// warm up l2 cache
-	for(uint32_t i = uid; i<ARRAY_SIZE; i+=TOTAL_THREADS){
-		float* ptr = posArray+i;
-		// every warp loads all data in l2 cache
-		// use cg modifier to cache the load in L2 and bypass L1
-		asm volatile("{\t\n"
-			".reg .f32 data;\n\t"
-			"ld.global.cg.f32 data, [%1];\n\t"
-			"add.f32 %0, data, %0;\n\t"
-			"}" : "+f"(sink) : "l"(ptr) : "memory"
-		);
-	}
-	
 	asm volatile("bar.sync 0;");	
 
 	// start timing
@@ -111,7 +98,7 @@ int main(){
 
 	l2_bw<<<BLOCKS_NUM,THREADS_NUM>>>(startClk_g, stopClk_g, dsink_g, posArray_g);
 	gpuErrchk( cudaPeekAtLastError() );
-
+	
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
 	gpuErrchk( cudaMemcpy(stopClk, stopClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
 	gpuErrchk( cudaMemcpy(dsink, dsink_g, TOTAL_THREADS*sizeof(float), cudaMemcpyDeviceToHost) );
