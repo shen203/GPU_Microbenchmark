@@ -36,7 +36,7 @@ __global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, T *data1, T *re
 	asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
 
 	for (int j=0 ; j<REPEAT_TIMES ; ++j) {
-		atomicAdd(&data1[0], 10);
+		atomicAdd(&data1[gid], 10);
 	}
 	// synchronize all threads
 	asm volatile("bar.sync 0;");
@@ -87,7 +87,7 @@ int main(){
 
 	float bw;
 	uint32_t total_time = *std::max_element(&stopClk[0],&stopClk[TOTAL_THREADS])-*std::min_element(&startClk[0],&startClk[TOTAL_THREADS]);
-	bw = ((float)(REPEAT_TIMES*TOTAL_THREADS)/(float)(total_time));
+	bw = ((float)(REPEAT_TIMES*TOTAL_THREADS*4)/(float)(total_time));
 	printf("int32 bendwidth = %f (byte/clk)\n", bw);
 	printf("Total Clk number = %u \n", total_time);
 
