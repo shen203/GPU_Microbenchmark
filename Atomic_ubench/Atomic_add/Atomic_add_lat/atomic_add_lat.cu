@@ -25,7 +25,8 @@ __global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, T *data1, T *re
 	//register T s1 = data1[gid];
 	//register T s2 = data2[gid];
 	//register T result = 0;
-    uint32_t index = 0;
+	uint32_t index = 0;
+	int32_t offset = 10;
 	// synchronize all threads
 	asm volatile ("bar.sync 0;");
 	
@@ -34,7 +35,7 @@ __global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, T *data1, T *re
 	asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
 	//printf("%ld \n", &data1[0]);
 	for (int j=0 ; j<REPEAT_TIMES ; ++j) {
-		index = atomicAdd(&data1[index], 10);
+		index = atomicAdd(&data1[index], offset);
 		//printf("index = %d", index);
 	}
 	// synchronize all threads
