@@ -4,12 +4,11 @@
 #include <iostream>
 #include <algorithm>
 
-#define THREADS_PER_BLOCK 160
-#define THREADS_PER_SM 1024
-#define BLOCKS_NUM 1
+#define THREADS_PER_BLOCK 1024
+#define BLOCKS_NUM 160
 #define TOTAL_THREADS (THREADS_PER_BLOCK*BLOCKS_NUM)
 #define WARP_SIZE 32
-#define REPEAT_TIMES 1024
+#define REPEAT_TIMES 1
 
 // GPU error check
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -27,8 +26,8 @@ __global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, T *data1, T *re
 	//register T s1 = data1[gid];
 	//register T s2 = data2[gid];
 	//register T result = 0;
-    
 	// synchronize all threads
+	int32_t res0, res1, res2, res3, res4, res5, res6, res7;
 	asm volatile ("bar.sync 0;");
 
 	// start timing
@@ -36,7 +35,15 @@ __global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, T *data1, T *re
 	asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
 
 	for (int j=0 ; j<REPEAT_TIMES ; ++j) {
-		atomicAdd(&data1[gid], 10);
+		res0 = atomicAdd(&data1[gid+0*TOTAL_THREADS], 10);
+		res1 = atomicAdd(&data1[gid+1*TOTAL_THREADS], 10);
+		res2 = atomicAdd(&data1[gid+2*TOTAL_THREADS], 10);
+		res3 = atomicAdd(&data1[gid+3*TOTAL_THREADS], 10);
+
+		res4 = atomicAdd(&data1[gid+4*TOTAL_THREADS], 10);
+		res5 = atomicAdd(&data1[gid+5*TOTAL_THREADS], 10);
+		res6 = atomicAdd(&data1[gid+6*TOTAL_THREADS], 10);
+		res7 = atomicAdd(&data1[gid+7*TOTAL_THREADS], 10);
 	}
 	// synchronize all threads
 	asm volatile("bar.sync 0;");
@@ -48,13 +55,13 @@ __global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, T *data1, T *re
 	// write time and data back to memory
 	startClk[gid] = start;
 	stopClk[gid] = stop;
-	res[gid] = data1[0];
+	res[gid] = res0 + res1 + res2 + res3 + res4 + res5 + res6 + res7;
 }
 
 int main(){
 	uint32_t *startClk = (uint32_t*) malloc(TOTAL_THREADS*sizeof(uint32_t));
 	uint32_t *stopClk = (uint32_t*) malloc(TOTAL_THREADS*sizeof(uint32_t));
-	int32_t *data1 = (int32_t*) malloc(TOTAL_THREADS*sizeof(int32_t));
+	int32_t *data1 = (int32_t*) malloc(TOTAL_THREADS*8*sizeof(int32_t));
 	//int32_t *data2 = (int32_t*) malloc(TOTAL_THREADS*sizeof(int32_t));
 	int32_t *res = (int32_t*) malloc(TOTAL_THREADS*sizeof(int32_t));
 
@@ -64,18 +71,18 @@ int main(){
 	//int32_t *data2_g;
 	int32_t *res_g;
 
-	for (uint32_t i=0; i<TOTAL_THREADS; i++) {
+	for (uint32_t i=0; i<TOTAL_THREADS*8; i++) {
 		data1[i] = (int32_t)i;
 		//data2[i] = (int32_t)i;
 	}
 
 	gpuErrchk( cudaMalloc(&startClk_g, TOTAL_THREADS*sizeof(uint32_t)) );
 	gpuErrchk( cudaMalloc(&stopClk_g, TOTAL_THREADS*sizeof(uint32_t)) );
-	gpuErrchk( cudaMalloc(&data1_g, TOTAL_THREADS*sizeof(int32_t)) );
+	gpuErrchk( cudaMalloc(&data1_g, TOTAL_THREADS*8*sizeof(int32_t)) );
 	//gpuErrchk( cudaMalloc(&data2_g, TOTAL_THREADS*sizeof(int32_t)) );
 	gpuErrchk( cudaMalloc(&res_g, TOTAL_THREADS*sizeof(int32_t)) );
 
-	gpuErrchk( cudaMemcpy(data1_g, data1, TOTAL_THREADS*sizeof(int32_t), cudaMemcpyHostToDevice) );
+	gpuErrchk( cudaMemcpy(data1_g, data1, TOTAL_THREADS*8*sizeof(int32_t), cudaMemcpyHostToDevice) );
 	//gpuErrchk( cudaMemcpy(data2_g, data2, TOTAL_THREADS*sizeof(int32_t), cudaMemcpyHostToDevice) );
 
 	max_flops<int32_t><<<BLOCKS_NUM,THREADS_PER_BLOCK>>>(startClk_g, stopClk_g, data1_g, res_g);
@@ -87,7 +94,7 @@ int main(){
 
 	float bw;
 	uint32_t total_time = *std::max_element(&stopClk[0],&stopClk[TOTAL_THREADS-1])-*std::min_element(&startClk[0],&startClk[TOTAL_THREADS-1]);
-	bw = ((float)(REPEAT_TIMES*TOTAL_THREADS*4)/(float)(total_time));
+	bw = ((float)(REPEAT_TIMES*TOTAL_THREADS*4*8)/(float)(total_time));
 	printf("int32 bendwidth = %f (byte/clk)\n", bw);
 	printf("Total Clk number = %u \n", total_time);
 
