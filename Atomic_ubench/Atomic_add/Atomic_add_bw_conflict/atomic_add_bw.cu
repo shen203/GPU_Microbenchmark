@@ -4,9 +4,8 @@
 #include <iostream>
 #include <algorithm>
 
-#define THREADS_PER_BLOCK 160
-#define THREADS_PER_SM 1024
-#define BLOCKS_NUM 1
+#define THREADS_PER_BLOCK 1024
+#define BLOCKS_NUM 160
 #define TOTAL_THREADS (THREADS_PER_BLOCK*BLOCKS_NUM)
 #define WARP_SIZE 32
 #define REPEAT_TIMES 1024
@@ -27,7 +26,7 @@ __global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, T *data1, T *re
 	//register T s1 = data1[gid];
 	//register T s2 = data2[gid];
 	//register T result = 0;
-    
+	uint32_t sum;
 	// synchronize all threads
 	asm volatile ("bar.sync 0;");
 
@@ -36,7 +35,7 @@ __global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, T *data1, T *re
 	asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
 
 	for (int j=0 ; j<REPEAT_TIMES ; ++j) {
-		atomicAdd(&data1[0], 10);
+		sum = sum + atomicAdd(&data1[0], 10);
 	}
 	// synchronize all threads
 	asm volatile("bar.sync 0;");
@@ -48,7 +47,7 @@ __global__ void max_flops(uint32_t *startClk, uint32_t *stopClk, T *data1, T *re
 	// write time and data back to memory
 	startClk[gid] = start;
 	stopClk[gid] = stop;
-	res[gid] = data1[0];
+	res[gid] = sum;
 }
 
 int main(){
