@@ -1,23 +1,20 @@
-//This code is a modification of L2 cache benchmark from 
-//"Dissecting the NVIDIA Volta GPU Architecture via Microbenchmarking": https://arxiv.org/pdf/1804.06826.pdf
-
+//This code is a modification of L2 cache benchmark from https://github.com/shen203/GPU_Microbenchmark
 //This benchmark measures the maximum read bandwidth of L2 cache for 32f
 //Compile this file using the following command to disable L1 cache:
 //    nvcc -Xptxas -dlcm=cg -Xptxas -dscm=wt l2_bw.cu
 
-//This code have been tested on Volta V100 architecture
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
 
-#define BLOCKS_NUM 80
+#define BLOCKS_NUM 144
 #define THREADS_NUM 1024 //thread number/block
 #define TOTAL_THREADS (BLOCKS_NUM * THREADS_NUM)
 #define REPEAT_TIMES 256 
 #define WARP_SIZE 32 
 #define ARRAY_SIZE (TOTAL_THREADS*4 + REPEAT_TIMES*WARP_SIZE*4)  //Array size must not exceed L2 size 
-#define L2_SIZE 1572864 //L2 size in 32-bit. Volta L2 size is 6MB.
+#define L2_SIZE 1572864 //L2 size in 32-bit. Turing L2 size is 6MB.
 
 // GPU error check
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
