@@ -1,4 +1,3 @@
-
 //This benchmark measures the maximum read bandwidth of GPU memory
 //Compile this file using the following command to disable L1 cache:
 //    nvcc -Xptxas -dlcm=cg -Xptxas -dscm=wt l2_bw.cu
@@ -10,13 +9,12 @@
 #include <stdlib.h>
 #include <cuda.h>
 
-#define BLOCKS_NUM 160
+#define BLOCKS_NUM 216 // 72 SMs
 #define THREADS_NUM 1024 //thread number/block
 #define TOTAL_THREADS (BLOCKS_NUM*THREADS_NUM)
-#define ARRAY_SIZE 8388608   //Array size has to exceed L2 size to avoid L2 cache residence
+#define ARRAYSIZE_IN_F32COUNT 12582912   //The number of float number of each array. Total array size  has to exceed L2 size to avoid L2 cache residency
 #define WARP_SIZE 32 
-#define L2_SIZE 1572864 //number of floats L2 can store
-#define clock_freq_MHZ 1132
+#define L2SIZE_IN_F32COUNT 1572864 //number of floats L2 can store, 6MB L2
 
 // GPU error check
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -43,7 +41,7 @@ __global__ void mem_bw (float* A,  float* B, float* C, float* D, float* E, float
 	uint32_t start = 0;
 	asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
 
-	for(int i = idx; i < ARRAY_SIZE/4; i += blockDim.x * gridDim.x) {
+	for(int i = idx; i < ARRAYSIZE_IN_F32COUNT/4; i += blockDim.x * gridDim.x) {
 		float4 a1 = reinterpret_cast<float4*>(A)[i];
 		float4 b1 = reinterpret_cast<float4*>(B)[i];
 		float4 d1 = reinterpret_cast<float4*>(D)[i];
@@ -76,12 +74,12 @@ __global__ void mem_bw (float* A,  float* B, float* C, float* D, float* E, float
 int main(){
 	uint32_t *startClk = (uint32_t*) malloc(TOTAL_THREADS*sizeof(uint32_t));
 	uint32_t *stopClk = (uint32_t*) malloc(TOTAL_THREADS*sizeof(uint32_t));
-	float *A = (float*) malloc(ARRAY_SIZE*sizeof(float));
-	float *B = (float*) malloc(ARRAY_SIZE*sizeof(float));
-	float *C = (float*) malloc(ARRAY_SIZE*sizeof(float));
-	float *D = (float*) malloc(ARRAY_SIZE*sizeof(float));
-	float *E = (float*) malloc(ARRAY_SIZE*sizeof(float));
-	float *F = (float*) malloc(ARRAY_SIZE*sizeof(float));
+	float *A = (float*) malloc(ARRAYSIZE_IN_F32COUNT*sizeof(float));
+	float *B = (float*) malloc(ARRAYSIZE_IN_F32COUNT*sizeof(float));
+	float *C = (float*) malloc(ARRAYSIZE_IN_F32COUNT*sizeof(float));
+	float *D = (float*) malloc(ARRAYSIZE_IN_F32COUNT*sizeof(float));
+	float *E = (float*) malloc(ARRAYSIZE_IN_F32COUNT*sizeof(float));
+	float *F = (float*) malloc(ARRAYSIZE_IN_F32COUNT*sizeof(float));
 
 
 	uint32_t *startClk_g;
@@ -94,7 +92,7 @@ int main(){
 	float *F_g;
 
 
-	for (uint32_t i=0; i<ARRAY_SIZE; i++){
+	for (uint32_t i=0; i<ARRAYSIZE_IN_F32COUNT; i++){
 		A[i] = (float)i;
 		B[i] = (float)i;
 		D[i] = (float)i;
@@ -105,19 +103,19 @@ int main(){
 
 	gpuErrchk( cudaMalloc(&startClk_g, TOTAL_THREADS*sizeof(uint32_t)) );
 	gpuErrchk( cudaMalloc(&stopClk_g, TOTAL_THREADS*sizeof(uint32_t)) );
-	gpuErrchk( cudaMalloc(&A_g, ARRAY_SIZE*sizeof(float)) );
-	gpuErrchk( cudaMalloc(&B_g, ARRAY_SIZE*sizeof(float)) );
-	gpuErrchk( cudaMalloc(&C_g, ARRAY_SIZE*sizeof(float)) );
-	gpuErrchk( cudaMalloc(&D_g, ARRAY_SIZE*sizeof(float)) );
-	gpuErrchk( cudaMalloc(&E_g, ARRAY_SIZE*sizeof(float)) );
-	gpuErrchk( cudaMalloc(&F_g, ARRAY_SIZE*sizeof(float)) );
+	gpuErrchk( cudaMalloc(&A_g, ARRAYSIZE_IN_F32COUNT*sizeof(float)) );
+	gpuErrchk( cudaMalloc(&B_g, ARRAYSIZE_IN_F32COUNT*sizeof(float)) );
+	gpuErrchk( cudaMalloc(&C_g, ARRAYSIZE_IN_F32COUNT*sizeof(float)) );
+	gpuErrchk( cudaMalloc(&D_g, ARRAYSIZE_IN_F32COUNT*sizeof(float)) );
+	gpuErrchk( cudaMalloc(&E_g, ARRAYSIZE_IN_F32COUNT*sizeof(float)) );
+	gpuErrchk( cudaMalloc(&F_g, ARRAYSIZE_IN_F32COUNT*sizeof(float)) );
 
 
-	gpuErrchk( cudaMemcpy(A_g, A, ARRAY_SIZE*sizeof(float), cudaMemcpyHostToDevice) );
-	gpuErrchk( cudaMemcpy(B_g, B, ARRAY_SIZE*sizeof(float), cudaMemcpyHostToDevice) );
-	gpuErrchk( cudaMemcpy(D_g, D, ARRAY_SIZE*sizeof(float), cudaMemcpyHostToDevice) );
-	gpuErrchk( cudaMemcpy(E_g, E, ARRAY_SIZE*sizeof(float), cudaMemcpyHostToDevice) );
-	gpuErrchk( cudaMemcpy(F_g, F, ARRAY_SIZE*sizeof(float), cudaMemcpyHostToDevice) );
+	gpuErrchk( cudaMemcpy(A_g, A, ARRAYSIZE_IN_F32COUNT*sizeof(float), cudaMemcpyHostToDevice) );
+	gpuErrchk( cudaMemcpy(B_g, B, ARRAYSIZE_IN_F32COUNT*sizeof(float), cudaMemcpyHostToDevice) );
+	gpuErrchk( cudaMemcpy(D_g, D, ARRAYSIZE_IN_F32COUNT*sizeof(float), cudaMemcpyHostToDevice) );
+	gpuErrchk( cudaMemcpy(E_g, E, ARRAYSIZE_IN_F32COUNT*sizeof(float), cudaMemcpyHostToDevice) );
+	gpuErrchk( cudaMemcpy(F_g, F, ARRAYSIZE_IN_F32COUNT*sizeof(float), cudaMemcpyHostToDevice) );
 
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
@@ -132,17 +130,16 @@ int main(){
 
 	gpuErrchk( cudaMemcpy(startClk, startClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
 	gpuErrchk( cudaMemcpy(stopClk, stopClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
-	gpuErrchk( cudaMemcpy(C, C_g, ARRAY_SIZE*sizeof(float), cudaMemcpyDeviceToHost) );
+	gpuErrchk( cudaMemcpy(C, C_g, ARRAYSIZE_IN_F32COUNT*sizeof(float), cudaMemcpyDeviceToHost) );
 
 	float mem_bw;
 	float milliseconds = 0;
 	cudaEventElapsedTime(&milliseconds, start, stop);
 
-	unsigned N = ARRAY_SIZE * 6 * 4; //6 arrays of floats types
+	unsigned N = ARRAYSIZE_IN_F32COUNT * 6 * 4; //6 arrays of floats types
 
 	mem_bw = (float)(N)/((float)(stopClk[0]-startClk[0]));  
 	printf("Mem BW= %f (Byte/Clk)\n", mem_bw);
 	printf("Mem BW= %f (GB/sec)\n", (float)N/milliseconds/1e6);
 	printf("Total Clk number = %u \n", stopClk[0]-startClk[0]);
 }
-
